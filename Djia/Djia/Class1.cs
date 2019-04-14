@@ -101,7 +101,7 @@ namespace Djia
             var token = Environment.GetEnvironmentVariable("IEX_Cloud_Secret_Key");
 
             var client = new HttpClient {BaseAddress = new Uri("https://cloud.iexapis.com/")};
-            var awsClient = new AwsTools.DynamoDbClient<Quote>(DynamoDbClient, new Logger(Output));
+            var awsClient = new DynamoDbClient<Quote>(DynamoDbClient, new Logger(Output));
 
             foreach (var stock in stocks)
             {
@@ -119,6 +119,7 @@ namespace Djia
                     quote = request.Content.ReadAsStringAsync().Result;
                     var quoteEntity = JsonConvert.DeserializeObject<Quote>(quote);
                     quoteEntity.InstrumentType = INSTRUMENT_TYPE_STOCK;
+                    Output.WriteLine(quoteEntity.Symbol);
                     awsClient.Insert(quoteEntity).Wait();
                     System.Threading.Thread.Sleep(250);
                 }
@@ -133,65 +134,29 @@ namespace Djia
         }
 
         [Fact]
-        public void GetDjia()
+        public void GetDowJonesIndustrialAverage()
         {
-            var request = new QueryRequest(new Quote().GetTable())
+            var awsClient = new DynamoDbClient<Quote>(DynamoDbClient, new Logger(Output));
+            var quotes = awsClient.Get(new List<Quote>()
             {
-                IndexName = INDEX_SORT_BY_MARKET_CAP,
-                ExpressionAttributeValues = new Dictionary<string, AttributeValue>(),
-                ExpressionAttributeNames = new Dictionary<string, string>(),
-                Limit = 30
-            };
-            var key1 = "marketCap";
-            string key2 = "#source" + key1;
-            string key3 = ":" + key1;
-            request.ExpressionAttributeNames.Add(key2, key1);
-            request.ExpressionAttributeValues.Add(key3, new AttributeValue { N = "1"});
-            if (!string.IsNullOrWhiteSpace(request.KeyConditionExpression))
-                request.KeyConditionExpression += " and ";
-            QueryRequest queryRequest = request;
-            queryRequest.KeyConditionExpression = queryRequest.KeyConditionExpression + key2 + " = " + key3;
-            Output.WriteLine(queryRequest.KeyConditionExpression);
-
-            var scanResult = DynamoDbClient.QueryAsync(request).Result;
-            var quotes = Conversion<Quote>.ConvertToPoco(scanResult.Items);
-            Output.WriteLine(JsonConvert.SerializeObject(quotes.Select(x => x.Symbol + " " + x.CompanyName), Formatting.Indented));
-        }
-
-        [Fact]
-        public void GetDjia2()
-        {
-            List<string> excludedSymbols = new List<string>
-            {
-                "FB", "BRK.B", "BAC", "MA", "CMCSA", "C", "ABT", "LLY", "ADBE", "ABBV", "CRM",
-                "AVGO", "AMGN", "MDT", "HON", "ACN", "COST"
-            };
-            var request = new QueryRequest(new Quote().GetTable())
-            {
-                IndexName = INDEX_SORT_BY_MARKET_CAP,
-                ExpressionAttributeValues = new Dictionary<string, AttributeValue>(),
-                ExpressionAttributeNames = new Dictionary<string, string>(),
-                FilterExpression = "#sourcelatestPrice < :maxPrice",
-                Limit = 1000,
-                ScanIndexForward = false
-            };
-            foreach (var excludedSymbol in excludedSymbols)
-            {
-                request.FilterExpression += " and #sourceSymbol <> :" + excludedSymbol.Replace(".", "ABC123UNIQUE");
-                request.ExpressionAttributeValues.Add(":" + excludedSymbol.Replace(".", "ABC123UNIQUE"), new AttributeValue { S = excludedSymbol});
-            }
-            request.ExpressionAttributeNames.Add("#sourceinstrumentType", "instrumentType");
-            request.ExpressionAttributeNames.Add("#sourcelatestPrice", "latestPrice");
-            request.ExpressionAttributeNames.Add("#sourceSymbol", "symbol");
-            request.ExpressionAttributeValues.Add(":instrumentType", new AttributeValue { S = INSTRUMENT_TYPE_STOCK });
-            request.ExpressionAttributeValues.Add(":maxPrice", new AttributeValue { N = "1000"});
-            QueryRequest queryRequest = request;
-            queryRequest.KeyConditionExpression = queryRequest.KeyConditionExpression + "#sourceinstrumentType = :instrumentType";
-
-            var scanResult = DynamoDbClient.QueryAsync(request).Result;
-            var quotes = Conversion<Quote>.ConvertToPoco(scanResult.Items);
-            Output.WriteLine(
-                JsonConvert.SerializeObject(quotes.Take(30).Select(x => RightPad(x.Symbol, 6) + " " + x.MarketCap + " " + x.CompanyName + " - " + x.LatestPrice), Formatting.Indented));
+                new Quote { Symbol = "MMM"}, new Quote { Symbol = "AXP"}, new Quote { Symbol = "AAPL"},
+                new Quote { Symbol = "BA"}, new Quote { Symbol = "CAT"}, new Quote { Symbol = "CVX"},
+                new Quote { Symbol = "CSCO"}, new Quote { Symbol = "KO"}, new Quote { Symbol = "DIS"},
+                new Quote { Symbol = "DOW"}, new Quote { Symbol = "XOM"}, new Quote { Symbol = "GS"},
+                new Quote { Symbol = "HD"}, new Quote { Symbol = "IBM"}, new Quote { Symbol = "INTC"},
+                new Quote { Symbol = "JNJ"}, new Quote { Symbol = "JPM"}, new Quote { Symbol = "MCD"},
+                new Quote { Symbol = "MRK"}, new Quote { Symbol = "MSFT"}, new Quote { Symbol = "NKE"},
+                new Quote { Symbol = "PFE"}, new Quote { Symbol = "PG"}, new Quote { Symbol = "TRV"},
+                new Quote { Symbol = "UTX"}, new Quote { Symbol = "UNH"}, new Quote { Symbol = "VZ"},
+                new Quote { Symbol = "V"}, new Quote { Symbol = "WMT"}, new Quote { Symbol = "WBA"}
+            }).Result;
+            //Output.WriteLine(JsonConvert.SerializeObject(quotes.Select(x => RightPad(x.Symbol, 6) + " " + x.MarketCap + " " + x.CompanyName + " - " + x.LatestPrice), Formatting.Indented));
+            Assert.Equal(30, quotes.Count);
+            var sumPrice = quotes.Sum(x => x.LatestPrice);
+            //var averagePrice = sumPrice / quotes.Count;
+            var divisor = 0.14744568353097m;
+            var djia = sumPrice / divisor;
+            Output.WriteLine(djia.ToString());
         }
 
         public string RightPad(string value, int fixedWidth)
