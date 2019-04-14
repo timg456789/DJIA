@@ -150,10 +150,8 @@ namespace Djia
                 new Quote { Symbol = "UTX"}, new Quote { Symbol = "UNH"}, new Quote { Symbol = "VZ"},
                 new Quote { Symbol = "V"}, new Quote { Symbol = "WMT"}, new Quote { Symbol = "WBA"}
             }).Result;
-            //Output.WriteLine(JsonConvert.SerializeObject(quotes.Select(x => RightPad(x.Symbol, 6) + " " + x.MarketCap + " " + x.CompanyName + " - " + x.LatestPrice), Formatting.Indented));
             Assert.Equal(30, quotes.Count);
             var sumPrice = quotes.Sum(x => x.LatestPrice);
-            //var averagePrice = sumPrice / quotes.Count;
             var divisor = 0.14744568353097m;
             var djia = sumPrice / divisor;
             Output.WriteLine(djia.ToString());
